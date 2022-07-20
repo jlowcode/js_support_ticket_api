@@ -204,14 +204,84 @@
 				->columns(implode(",", $arrColumns))
 				->values("'" . implode("','", $arrValues) . "'");
 			$db->setQuery($query);
+			$insertTicket = $db->execute();
 
-			if (!$db->execute()) {
+			$id = $db->insertid();
+			$relationships = $this->addRelationships($id);
+
+			if (!$insertTicket) {
 				$this->response->error = true;
 				$this->response->msg = "Erro ao inserir registros";
 				return false;
-			} else {
-				$this->response->msg = "Registros inseridos com sucesso";
-				$this->response->ticketid = $ticketid;
+			}
+
+			if(!$relationships) {
+				$this->response->error = true;
+				$this->response->msg = "Erro ao inserir relacionamentos";
+				return false;
+			}
+
+			$this->response->msg = "Registros inseridos com sucesso";
+			$this->response->ticketid = $ticketid;
+
+			return true;
+		}
+
+		public function addRelationships($id) {
+			$options = $this->options;
+			$data = $this->data;
+			$relationships = $options['relationships'];
+
+			if(empty($relationships)) {
+				return false;
+			}
+
+			foreach($relationships as $key => $values) {
+				if($key == 'products') {
+					if(!$this->addRelationshipsProducts($id, $values)) {
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+
+		private function addRelationshipsProducts($id, $values) {
+			$db = JFactory::getDbo();
+			$query = $db->getQuery(true);
+
+			$arrColumns = Array('date_time', 'id_ticket');
+			$arrValuesPed = Array(date('Y-m-d H:i:s'), $id);
+
+			$query->clear()
+				->insert('#__0_pedidos')
+				->columns("`" . implode("`,`", $arrColumns) . "`")
+				->values("'" . implode("','", $arrValuesPed) . "'");
+			$db->setQuery($query);
+			$db->execute();
+			
+			$idPedido = $db->insertid();
+			if(!$idPedido) {
+				return false;
+			}
+
+			foreach($values as $value) {
+				$idProduct = $value['id'];
+				$qtnProduct = $value['qtn'];
+
+				$arrColumns = Array('parent_id', 'produto_ped', 'quantidade_ped');
+				$arrValuesPed = Array($idPedido, $idProduct, $qtnProduct);
+				
+				$query->clear()
+					->insert('#__0_pedidos_7_repeat')
+					->columns("`" . implode("`,`", $arrColumns) . "`")
+					->values("'" . implode("','", $arrValuesPed) . "'");
+				$db->setQuery($query);
+				
+				if(!$db->execute()) {
+					return false;
+				}
 			}
 
 			return true;
