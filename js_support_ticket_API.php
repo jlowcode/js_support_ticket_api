@@ -215,7 +215,7 @@
 				return false;
 			}
 
-			if(!$relationships) {
+			if(!$relationships  && !empty($options['relationships'])) {
 				$this->response->error = true;
 				$this->response->msg = "Erro ao inserir relacionamentos";
 				return false;
