@@ -215,7 +215,7 @@
 				return false;
 			}
 
-			if(!$relationships) {
+			if(!$relationships  && !empty($options['relationships'])) {
 				$this->response->error = true;
 				$this->response->msg = "Erro ao inserir relacionamentos";
 				return false;
@@ -599,7 +599,7 @@
 				$request->defineActionSite();
 			} catch(Exception $e) {
 				$request->response->error = true;
-				$request->response->msg = $e;
+				$request->response->msg = $e->getMessage();
 			}
 		}
 	} 
