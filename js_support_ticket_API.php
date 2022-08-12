@@ -179,7 +179,13 @@
 						$params['ufield_31'] = $value;
 						$normal = false;
 						break;
+					
+					case 'aprovacao':
+						$params['ufield_32'] = $value;
+						$normal = false;
+						break;
 				}
+
 				if($normal) {
 					$arrColumns[] = '`' . $column . '`';
 					$arrValues[] = $value;
@@ -472,16 +478,42 @@
 
 		public function updateRows() {
 			$db = JFactory::getDbo();
+			$query = $db->getQuery(true);
+			$ticketid = $this->data['ticketid'];
 
-			
+			if(!$ticketid) {
+				$this->response->error = true;
+				$this->response->msg = "Id do ticket não encontrado";
+				return false;
+			}
+
 			$dataUpdate = new stdClass();
+			$newParams = new stdClass();
+			$dataUfields = Array();
+
 			foreach($this->data as $column => $value) {
+				if(strstr($column, "ufield")) {
+					$dataUfields[$column] = $value;
+					continue;
+				}
 				$dataUpdate->$column = $value;
 			}
 			
+			$query->clear()
+				->select('params')
+				->from('#__js_ticket_tickets')
+				->where('ticketid = ' . $db->q($ticketid));
+			$db->setQuery($query);
+			$params = (array) json_decode($db->loadRow()[0]);
+
+			foreach($dataUfields as $fieldUpdate => $valueUpdate) {
+				$params[$fieldUpdate] = $valueUpdate;
+			}
+			$dataUpdate->params = json_encode($params);
+
 			if(!$db->updateObject('#__js_ticket_tickets', $dataUpdate, 'ticketid')) {
 				$this->response->error = true;
-				$this->response->msg = "Registros não atualizados";
+				$this->response->msg = "Registros principais não atualizados";
 				return false;
 			}
 
@@ -554,6 +586,10 @@
 
 					case 'etapa':
 						$uField = 'ufield_31';
+						break;
+
+					case 'aprovacao':
+						$uField = 'ufield_32';
 						break;
 				}
 
