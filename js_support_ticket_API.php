@@ -38,10 +38,17 @@
 
 			switch ($_SERVER['REQUEST_METHOD']) {
 				case 'POST':
-					$request = json_decode(file_get_contents("php://input"), true);
- 					$this->authentication = $request['authentication'];
-					$this->data = $request['data'];
-					$this->options = $request['options'];
+					if(!empty(file_get_contents("php://input"))) {
+						//Rota antiga sem envio de arquivos, recebendo string
+						$request = json_decode(file_get_contents("php://input"), true);
+					} else {
+						//Nova rota com envio de arquivos, recebendo obj FormData in js
+						$request = (array) json_decode($_POST['request']);
+					}
+
+					$this->authentication = (array) $request['authentication'];
+					$this->data = (array) $request['data'];
+					$this->options = (array) $request['options'];
 					switch ($this->options['type']) {
 						case 'internal_notes':
 							$this->action = 'addNotes';
@@ -194,17 +201,18 @@
 
 			$ticketid = substr(str_shuffle($str), 0, 11);
 			$hash = 'Ik' . substr(str_shuffle($str), 0, 6);
+			$attachmentDir = substr(str_shuffle($str), 0, 9);
 
 			$arrColumnsDefault = array("`ticketid`", "`params`", "`created`", "`hash`", "`ticketviaemail`", "`attachmentdir`", "`status`", "`duedate`");
 			foreach($arrColumnsDefault as $column) {
 				$arrColumns[] = $column;
 			}
 			
-			$arrValuesDefault = array($ticketid, json_encode($params), date('Y-m-d H:i:s'), $hash, 0, 0, 0, $duedate);
+			$arrValuesDefault = array($ticketid, json_encode($params), date('Y-m-d H:i:s'), $hash, 0, $attachmentDir, 0, $duedate);
 			foreach($arrValuesDefault as $value) {
 				$arrValues[] = $value;
 			}
-						
+			
 			$query->clear()
 				->insert('#__js_ticket_tickets')
 				->columns(implode(",", $arrColumns))
@@ -213,7 +221,7 @@
 			$insertTicket = $db->execute();
 
 			$id = $db->insertid();
-			$relationships = $this->addRelationships($id);
+			$relationships = $this->addRelationships($id, $attachmentDir);
 
 			if (!$insertTicket) {
 				$this->response->error = true;
@@ -233,7 +241,7 @@
 			return true;
 		}
 
-		public function addRelationships($id) {
+		public function addRelationships($id, $attachmentDir) {
 			$options = $this->options;
 			$data = $this->data;
 			$relationships = $options['relationships'];
@@ -243,8 +251,55 @@
 			}
 
 			foreach($relationships as $key => $values) {
-				if($key == 'products') {
-					if(!$this->addRelationshipsProducts($id, $values)) {
+				switch ($key) {
+					case 'products':
+						if(!$this->addRelationshipsProducts($id, $values)) {
+							return false;
+						}
+						break;
+					
+					case 'attachments':
+						if(!$this->addRelationshipsAttachments($id, $attachmentDir)) {
+							return false;
+						}
+						break;
+				}
+			}
+
+			return true;
+		}
+
+		private function addRelationshipsAttachments($id, $attachmentDir) {
+			$db = JFactory::getDbo();
+			$query = $db->getQuery(true);
+
+			$files = $_FILES;
+			$dirFiles = JPATH_BASE . '/jssupportticketdata/attachmentdata/ticket/'; //Locally
+			$dirFilesTicket = $dirFiles . $attachmentDir;
+
+			//Check if the folder does not exist, then create the folder and html file
+			if(!is_dir($dirFilesTicket)) {
+				mkdir($dirFilesTicket, 0755);
+				fclose(fopen($dirFilesTicket . '/index.html', 'w'));
+			}
+			
+			foreach($files as $file) {
+				$dirFileRenamed = $dirFilesTicket . '/' . str_replace(' ', '-', $file['name']);
+
+				if(!file_exists($dirFileRenamed)) {
+					if(!rename($file['tmp_name'], $dirFileRenamed)) {
+						return false;
+					}
+
+					$refAttachments = new stdClass();
+					$refAttachments->ticketid = $id;
+					$refAttachments->replyattachmentid = 0;
+					$refAttachments->filesize = $file['size'];
+					$refAttachments->filename = str_replace(' ', '-', $file['name']);
+					$refAttachments->created = date('Y-m-d H:i:s');
+
+					$resultFile = $db->insertObject('#__js_ticket_attachments', $refAttachments, 'id');
+					if(!$resultFile) {
 						return false;
 					}
 				}
@@ -273,6 +328,7 @@
 			}
 
 			foreach($values as $value) {
+				$value = (array) $value;
 				$idProduct = $value['id'];
 				$qtnProduct = $value['qtn'];
 
