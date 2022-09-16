@@ -191,6 +191,11 @@
 						$params['ufield_32'] = $value;
 						$normal = false;
 						break;
+
+					case 'centros_custos':
+						$params['ufield_37'] = $value;
+						$normal = false;
+						break;
 				}
 
 				if($normal) {
