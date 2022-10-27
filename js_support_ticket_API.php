@@ -205,15 +205,14 @@
 			}
 
 			$ticketid = substr(str_shuffle($str), 0, 11);
-			$hash = 'Ik' . substr(str_shuffle($str), 0, 6);
 			$attachmentDir = substr(str_shuffle($str), 0, 9);
 
-			$arrColumnsDefault = array("`ticketid`", "`params`", "`created`", "`hash`", "`ticketviaemail`", "`attachmentdir`", "`status`", "`duedate`");
+			$arrColumnsDefault = array("`ticketid`", "`params`", "`created`", "`ticketviaemail`", "`attachmentdir`", "`status`", "`duedate`");
 			foreach($arrColumnsDefault as $column) {
 				$arrColumns[] = $column;
 			}
 			
-			$arrValuesDefault = array($ticketid, json_encode($params), date('Y-m-d H:i:s'), $hash, 0, $attachmentDir, 0, $duedate);
+			$arrValuesDefault = array($ticketid, json_encode($params), date('Y-m-d H:i:s'), 0, $attachmentDir, 0, $duedate);
 			foreach($arrValuesDefault as $value) {
 				$arrValues[] = $value;
 			}
@@ -226,6 +225,20 @@
 			$insertTicket = $db->execute();
 
 			$id = $db->insertid();
+
+			//Update hash
+			$hash = base64_encode(json_encode(base64_encode($id)));
+			$updateHash = new stdClass();
+			$updateHash->hash = $hash;
+			$updateHash->ticketid = $ticketid;
+
+			if(!$db->updateObject('#__js_ticket_tickets', $updateHash, 'ticketid')) {
+				$this->response->error = true;
+				$this->response->msg = "Hash não atualizado";
+
+				return false;
+			}
+
 			$relationships = $this->addRelationships($id, $attachmentDir);
 
 			if (!$insertTicket) {
